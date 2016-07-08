@@ -26,6 +26,7 @@ use ffi::libc::{c_int, c_void, c_char, size_t};
 
 use std::{mem, ptr, str, slice, any};
 use std::ffi::{CString, CStr};
+use std::marker::PhantomData;
 use super::convert::{ToLua, FromLua};
 
 use ::{
@@ -314,6 +315,28 @@ unsafe extern fn alloc_func(_: *mut c_void, ptr: *mut c_void, old_size: size_t, 
   }
 }
 
+/// A borrowed reference to a Lua thread, and a wrapper around `lua_State`.
+///
+/// Constructed through `State::from_ptr` or other methods which return a Lua
+/// thread.
+pub struct StateRef<'s> {
+  _ptr: *mut lua_State,
+  _phantom: PhantomData<&'s mut State>,
+}
+
+impl<'s> ::std::ops::Deref for StateRef<'s> {
+  type Target = State;
+  fn deref(&self) -> &State {
+    unsafe { mem::transmute(self) }
+  }
+}
+
+impl<'s> ::std::ops::DerefMut for StateRef<'s> {
+  fn deref_mut(&mut self) -> &mut State {
+    unsafe { mem::transmute(self) }
+  }
+}
+
 /// An idiomatic, Rust wrapper around `lua_State`.
 ///
 /// Function names adhere to Rust naming conventions. Most of the time, this
@@ -329,7 +352,6 @@ unsafe extern fn alloc_func(_: *mut c_void, ptr: *mut c_void, old_size: size_t, 
 #[allow(non_snake_case)]
 pub struct State {
   L: *mut lua_State,
-  owned: bool
 }
 
 unsafe impl Send for State {}
@@ -340,17 +362,25 @@ impl State {
   pub fn new() -> State {
     unsafe {
       let state = ffi::lua_newstate(Some(alloc_func), ptr::null_mut());
-      let mut state = State { L: state, owned: true };
+      let mut state = State { L: state };
       state.reset_extra();
       state
     }
   }
 
-  /// Constructs a wrapper `State` from a raw pointer. This is suitable for use
-  /// inside of native functions that accept a `lua_State` to obtain a wrapper.
+  /// Constructs a wrapper `StateRef` from a raw pointer. This is suitable for
+  /// use inside of native functions that accept a `lua_State` to obtain a
+  /// wrapper.
   #[allow(non_snake_case)]
-  pub unsafe fn from_ptr(L: *mut lua_State) -> State {
-    State { L: L, owned: false }
+  pub unsafe fn from_ptr<'a>(L: *mut lua_State) -> StateRef<'a> {
+    StateRef { _ptr: L, _phantom: PhantomData }
+  }
+
+  /// Constructs a wrapper `State` from a raw pointer, taking ownership. When
+  /// the resulting `State` is dropped, the `lua_State` is destroyed.
+  #[allow(non_snake_case)]
+  pub unsafe fn from_owned_ptr(L: *mut lua_State) -> State {
+    State { L: L }
   }
 
   /// Returns an unsafe pointer to the wrapped `lua_State`.
@@ -470,13 +500,10 @@ impl State {
   /// Maps to `lua_close`.
   pub fn close(self) {
     // lua_close will be called in the Drop impl
-    if !self.owned {
-      panic!("cannot explicitly close non-owned Lua state")
-    }
   }
 
   /// Maps to `lua_newthread`.
-  pub fn new_thread(&mut self) -> State {
+  pub fn new_thread(&mut self) -> StateRef {
     unsafe {
       let mut state = State::from_ptr(ffi::lua_newthread(self.L));
       state.reset_extra();
@@ -638,7 +665,7 @@ impl State {
   }
 
   /// Maps to `lua_tothread`.
-  pub fn to_thread(&mut self, index: Index) -> Option<State> {
+  pub fn to_thread(&mut self, index: Index) -> Option<StateRef> {
     let state = unsafe { ffi::lua_tothread(self.L, index) };
     if state.is_null() {
       None
@@ -1624,9 +1651,7 @@ impl State {
 
 impl Drop for State {
   fn drop(&mut self) {
-    if self.owned {
-      let _ = self.set_extra(None);
-      unsafe { ffi::lua_close(self.L) }
-    }
+    let _ = self.set_extra(None);
+    unsafe { ffi::lua_close(self.L) }
   }
 }

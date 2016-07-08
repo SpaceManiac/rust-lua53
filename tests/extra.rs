@@ -51,7 +51,6 @@ fn test_extra_thread() {
 #[test]
 fn test_extra_no_impact() {
     let mut state = lua::State::new();
-    let mut thread = state.new_thread();
-    check(&mut thread);
+    check(&mut state.new_thread());
     assert!(state.get_extra().is_none());
 }
