@@ -21,11 +21,10 @@
 // THE SOFTWARE.
 
 extern crate lua;
-extern crate libc;
 
 use lua::ffi::lua_State;
 use lua::{State, Function};
-use libc::c_int;
+use lua::libc::c_int;
 
 struct VecWrapper {
   data: Vec<i64>
