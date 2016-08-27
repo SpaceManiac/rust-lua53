@@ -38,9 +38,11 @@ pub use convert::*;
 pub use ffi::libc;
 pub use ffi::lua_Number as Number;
 pub use ffi::lua_Integer as Integer;
-pub use ffi::lua_CFunction as Function;
 pub use ffi::lua_Alloc as Allocator;
 pub use ffi::lua_Hook as Hook;
+
+/// A Lua native function pointer. See `lua_CFunction` in the Lua reference.
+pub type Function = unsafe extern fn(*mut ffi::lua_State) -> i32;
 
 /// Integer type used to index the Lua stack, usually `i32`.
 pub type Index = libc::c_int;

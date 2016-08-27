@@ -157,7 +157,7 @@ impl Type {
 
 /// A library with a specific name and loader function.
 #[derive(Copy, Clone)]
-pub struct Library(pub &'static str, pub unsafe extern fn (L: *mut lua_State) -> c_int);
+pub struct Library(pub &'static str, pub Function);
 
 /// The built-in Lua libraries.
 pub mod library {
@@ -370,7 +370,7 @@ impl State {
   pub fn preload_library(&mut self, lib: Library) {
     unsafe {
       ffi::luaL_getsubtable(self.L, ffi::LUA_REGISTRYINDEX, b"_PRELOAD\0".as_ptr() as *const c_char);
-      self.push_fn(Some(lib.1));
+      self.push_fn(lib.1);
       self.set_field(-2, lib.0);
       self.pop(1);  /* remove lib */
     }
@@ -378,7 +378,7 @@ impl State {
 
   /// Loads a built-in library and exposes it into lua code
   pub fn load_library(&mut self, lib: Library) {
-    self.requiref(lib.0, Some(lib.1), true);
+    self.requiref(lib.0, lib.1, true);
     self.pop(1);  /* remove lib */
   }
 
@@ -429,7 +429,7 @@ impl State {
   }
 
   /// Maps to `lua_atpanic`.
-  pub fn at_panic(&mut self, panicf: Function) -> Function {
+  pub fn at_panic(&mut self, panicf: Option<Function>) -> Option<Function> {
     unsafe { ffi::lua_atpanic(self.L, panicf) }
   }
 
@@ -565,9 +565,8 @@ impl State {
   }
 
   /// Maps to `lua_tocfunction`.
-  pub fn to_native_fn(&mut self, index: Index) -> Function {
-    let result = unsafe { ffi::lua_tocfunction(self.L, index) };
-    result
+  pub fn to_native_fn(&mut self, index: Index) -> Option<Function> {
+    unsafe { ffi::lua_tocfunction(self.L, index) }
   }
 
   /// Maps to `lua_touserdata`.
@@ -646,7 +645,7 @@ impl State {
 
   /// Maps to `lua_pushcclosure`.
   pub fn push_closure(&mut self, f: Function, n: c_int) {
-    unsafe { ffi::lua_pushcclosure(self.L, f, n) }
+    unsafe { ffi::lua_pushcclosure(self.L, Some(f), n) }
   }
 
   /// Maps to `lua_pushboolean`.
@@ -1041,12 +1040,12 @@ impl State {
   /// Maps to `lua_register`.
   pub fn register(&mut self, n: &str, f: Function) {
     let c_str = CString::new(n).unwrap();
-    unsafe { ffi::lua_register(self.L, c_str.as_ptr(), f) }
+    unsafe { ffi::lua_register(self.L, c_str.as_ptr(), Some(f)) }
   }
 
   /// Maps to `lua_pushcfunction`.
   pub fn push_fn(&mut self, f: Function) {
-    unsafe { ffi::lua_pushcfunction(self.L, f) }
+    unsafe { ffi::lua_pushcfunction(self.L, Some(f)) }
   }
 
   /// Maps to `lua_isfunction`.
@@ -1466,7 +1465,7 @@ impl State {
     for &(ref s, f) in ents.iter() {
       reg.push(ffi::luaL_Reg {
         name: s.as_ptr(),
-        func: f
+        func: Some(f)
       });
     }
     reg.push(ffi::luaL_Reg {name: ptr::null(), func: None});
@@ -1491,7 +1490,7 @@ impl State {
   /// Maps to `luaL_requiref`.
   pub fn requiref(&mut self, modname: &str, openf: Function, glb: bool) {
     let c_str = CString::new(modname).unwrap();
-    unsafe { ffi::luaL_requiref(self.L, c_str.as_ptr(), openf, glb as c_int) }
+    unsafe { ffi::luaL_requiref(self.L, c_str.as_ptr(), Some(openf), glb as c_int) }
   }
 
   /// Maps to `luaL_newlibtable`.

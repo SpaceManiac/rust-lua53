@@ -135,10 +135,6 @@ impl FromLua for bool {
 //#[unstable(reason="this is an experimental trait")]
 impl FromLua for Function {
   fn from_lua(state: &mut State, index: Index) -> Option<Function> {
-    if state.is_native_fn(index) {
-      Some(state.to_native_fn(index))
-    } else {
-      None
-    }
+    state.to_native_fn(index)
   }
 }

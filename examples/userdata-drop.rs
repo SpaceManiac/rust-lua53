@@ -95,10 +95,10 @@ impl VecWrapper {
 }
 
 const VECWRAPPER_LIB: [(&'static str, Function); 4] = [
-    ("new",  Some(VecWrapper::lua_new)),
-    ("get",  Some(VecWrapper::lua_get)),
-    ("push", Some(VecWrapper::lua_push)),
-    ("len",  Some(VecWrapper::lua_len))
+    ("new",  VecWrapper::lua_new),
+    ("get",  VecWrapper::lua_get),
+    ("push", VecWrapper::lua_push),
+    ("len",  VecWrapper::lua_len)
 ];
 
 fn main() {
@@ -123,7 +123,7 @@ fn main() {
     // VecWrappermetatable.__index = VecWrapper
     state.set_field(-2, "__index");
     // VecWrappermetatable.__gc = lua_gc
-    state.push_fn(Some(VecWrapper::lua_gc));
+    state.push_fn(VecWrapper::lua_gc);
     state.set_field(-2, "__gc");
 
     // pop metatable and VecWrapper table from the stack

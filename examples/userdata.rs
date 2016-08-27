@@ -71,9 +71,9 @@ impl Point2D {
 }
 
 const POINT2D_LIB: [(&'static str, Function); 3] = [
-  ("new", Some(Point2D::lua_new)),
-  ("x",   Some(Point2D::lua_x)),
-  ("y",   Some(Point2D::lua_y))
+  ("new", Point2D::lua_new),
+  ("x",   Point2D::lua_x),
+  ("y",   Point2D::lua_y)
 ];
 
 fn main() {
