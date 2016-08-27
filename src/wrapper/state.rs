@@ -155,56 +155,29 @@ impl Type {
   }
 }
 
-/// Represents all built-in libraries
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Library {
-  Base,
-  Coroutine,
-  Table,
-  Io,
-  Os,
-  String,
-  Utf8,
-  Bit32,
-  Math,
-  Debug,
-  Package,
-}
+/// A library with a specific name and loader function.
+#[derive(Copy, Clone)]
+pub struct Library(pub &'static str, pub unsafe extern fn (L: *mut lua_State) -> c_int);
 
-impl Library {
-  /// The name of the module in lua code
-  pub fn name(&self) -> &'static str {
-    use self::Library::*;
-    match *self {
-      Base => "_G",
-      Coroutine => "coroutine",
-      Table => "table",
-      Io => "io",
-      Os => "os",
-      String => "string",
-      Utf8 => "utf8",
-      Bit32 => "bit32",
-      Math => "math",
-      Debug => "debug",
-      Package => "package",
-    }
+/// The built-in Lua libraries.
+pub mod library {
+  use ffi;
+  use super::Library;
+  macro_rules! libraries {
+    ($($name:ident, $str:expr, $func:path;)*) => { $(pub const $name: Library = Library($str, $func);)* }
   }
-  /// Returns C function that may be used to load the library
-  pub fn loader(&self) -> unsafe extern fn (L: *mut lua_State) -> c_int {
-    use self::Library::*;
-    match *self {
-      Base => ffi::luaopen_base,
-      Coroutine => ffi::luaopen_coroutine,
-      Table => ffi::luaopen_table,
-      Io => ffi::luaopen_io,
-      Os => ffi::luaopen_os,
-      String => ffi::luaopen_string,
-      Utf8 => ffi::luaopen_utf8,
-      Bit32 => ffi::luaopen_bit32,
-      Math => ffi::luaopen_math,
-      Debug => ffi::luaopen_debug,
-      Package => ffi::luaopen_package,
-    }
+  libraries! {
+    BASE,       "_G",         ffi::luaopen_base;
+    COROUTINE,  "coroutine",  ffi::luaopen_coroutine;
+    TABLE,      "table",      ffi::luaopen_table;
+    IO,         "io",         ffi::luaopen_io;
+    OS,         "os",         ffi::luaopen_os;
+    STRING,     "string",     ffi::luaopen_string;
+    UTF8,       "utf8",       ffi::luaopen_utf8;
+    BIT32,      "bit32",      ffi::luaopen_bit32;
+    MATH,       "math",       ffi::luaopen_math;
+    DEBUG,      "debug",      ffi::luaopen_debug;
+    PACKAGE,    "package",    ffi::luaopen_package;
   }
 }
 
@@ -396,73 +369,17 @@ impl State {
   /// Preloads library, i.e. it's not exposed, but can be required
   pub fn preload_library(&mut self, lib: Library) {
     unsafe {
-      let pre = CString::new("_PRELOAD").unwrap();
-      ffi::luaL_getsubtable(self.L, ffi::LUA_REGISTRYINDEX, pre.as_ptr());
-      self.push_fn(Some(lib.loader()));
-      self.set_field(-2, lib.name());
+      ffi::luaL_getsubtable(self.L, ffi::LUA_REGISTRYINDEX, b"_PRELOAD\0".as_ptr() as *const c_char);
+      self.push_fn(Some(lib.1));
+      self.set_field(-2, lib.0);
       self.pop(1);  /* remove lib */
     }
   }
 
   /// Loads a built-in library and exposes it into lua code
   pub fn load_library(&mut self, lib: Library) {
-    self.requiref(lib.name(), Some(lib.loader()), true);
+    self.requiref(lib.0, Some(lib.1), true);
     self.pop(1);  /* remove lib */
-  }
-
-  /// Maps to `luaopen_base`.
-  pub fn open_base(&mut self) -> c_int {
-    unsafe { ffi::luaopen_base(self.L) }
-  }
-
-  /// Maps to `luaopen_coroutine`.
-  pub fn open_coroutine(&mut self) -> c_int {
-    unsafe { ffi::luaopen_coroutine(self.L) }
-  }
-
-  /// Maps to `luaopen_table`.
-  pub fn open_table(&mut self) -> c_int {
-    unsafe { ffi::luaopen_table(self.L) }
-  }
-
-  /// Maps to `luaopen_io`.
-  pub fn open_io(&mut self) -> c_int {
-    unsafe { ffi::luaopen_io(self.L) }
-  }
-
-  /// Maps to `luaopen_os`.
-  pub fn open_os(&mut self) -> c_int {
-    unsafe { ffi::luaopen_os(self.L) }
-  }
-
-  /// Maps to `luaopen_string`.
-  pub fn open_string(&mut self) -> c_int {
-    unsafe { ffi::luaopen_string(self.L) }
-  }
-
-  /// Maps to `luaopen_utf8`.
-  pub fn open_utf8(&mut self) -> c_int {
-    unsafe { ffi::luaopen_utf8(self.L) }
-  }
-
-  /// Maps to `luaopen_bit32`.
-  pub fn open_bit32(&mut self) -> c_int {
-    unsafe { ffi::luaopen_bit32(self.L) }
-  }
-
-  /// Maps to `luaopen_math`.
-  pub fn open_math(&mut self) -> c_int {
-    unsafe { ffi::luaopen_math(self.L) }
-  }
-
-  /// Maps to `luaopen_debug`.
-  pub fn open_debug(&mut self) -> c_int {
-    unsafe { ffi::luaopen_debug(self.L) }
-  }
-
-  /// Maps to `luaopen_package`.
-  pub fn open_package(&mut self) -> c_int {
-    unsafe { ffi::luaopen_package(self.L) }
   }
 
   /// Maps to `luaL_dofile`.
