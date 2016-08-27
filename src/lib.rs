@@ -27,31 +27,13 @@
 extern crate bitflags;
 pub extern crate lua_sys as ffi;
 
+mod convert;
+mod state;
+#[doc(hidden)]
+pub mod macros;
 
-pub use wrapper::state::{
-  State,
-
-  Arithmetic,
-  Comparison,
-  ThreadStatus,
-  GcOption,
-  Type,
-  Library,
-
-  Reference,
-  REFNIL, NOREF,
-
-  HookMask,
-  MASKCALL, MASKRET, MASKLINE, MASKCOUNT,
-
-  MULTRET, REGISTRYINDEX,
-  RIDX_MAINTHREAD, RIDX_GLOBALS
-};
-
-pub use wrapper::convert::{
-  ToLua,
-  FromLua
-};
+pub use state::*;
+pub use convert::*;
 
 pub use ffi::libc;
 pub use ffi::lua_Number as Number;
@@ -62,8 +44,3 @@ pub use ffi::lua_Hook as Hook;
 
 /// Integer type used to index the Lua stack, usually `i32`.
 pub type Index = libc::c_int;
-
-mod wrapper;
-
-#[doc(hidden)]
-pub mod macros;
