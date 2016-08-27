@@ -969,12 +969,13 @@ impl State {
   /// Maps to `lua_getallocf`.
   pub fn get_alloc_fn(&mut self) -> (Allocator, *mut c_void) {
     let mut slot = ptr::null_mut();
-    (unsafe { ffi::lua_getallocf(self.L, &mut slot) }, slot)
+    let func = unsafe { ffi::lua_getallocf(self.L, &mut slot) };
+    (func.unwrap(), slot)
   }
 
   /// Maps to `lua_setallocf`.
   pub fn set_alloc_fn(&mut self, f: Allocator, ud: *mut c_void) {
-    unsafe { ffi::lua_setallocf(self.L, f, ud) }
+    unsafe { ffi::lua_setallocf(self.L, Some(f), ud) }
   }
 
   //===========================================================================
