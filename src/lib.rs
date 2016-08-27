@@ -34,6 +34,7 @@ pub mod macros;
 
 pub use state::*;
 pub use convert::*;
+pub use macros::_wrap as wrap_fn;
 
 pub use ffi::libc;
 pub use ffi::lua_Number as Number;
