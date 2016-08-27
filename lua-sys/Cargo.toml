@@ -1,6 +1,6 @@
 [package]
 name = "lua-sys"
-version = "0.0.1"
+version = "5.3.3"
 authors = ["J.C. Moyer"]
 description = "FFI bindings to Lua"
 repository = "https://github.com/jcmoyer/rust-lua53"

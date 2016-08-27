@@ -15,5 +15,5 @@ license = "MIT"
 bitflags = "0.7"
 
 [dependencies.lua-sys]
-version = "0.0.1"
+version = "5.3.3"
 path = "lua-sys"
