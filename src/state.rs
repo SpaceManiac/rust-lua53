@@ -845,7 +845,7 @@ impl State {
 
   // TODO: mode typing?
   /// Maps to `lua_load`.
-  pub fn load<F>(&mut self, mut reader: F, source: &str, mode: &str) -> ThreadStatus
+  pub fn load<F>(&mut self, source: &str, mode: &str, mut reader: F) -> ThreadStatus
     where F: FnMut(&mut State) -> &[u8]
   {
     unsafe extern fn read<F>(st: *mut lua_State, ud: *mut c_void, sz: *mut size_t) -> *const c_char
@@ -867,7 +867,7 @@ impl State {
   // returns isize because the return value is dependent on the writer - seems to
   // be usable for anything
   /// Maps to `lua_dump`.
-  pub fn dump<F>(&mut self, mut writer: F, strip: bool) -> c_int
+  pub fn dump<F>(&mut self, strip: bool, mut writer: F) -> c_int
     where F: FnMut(&mut State, &[u8]) -> c_int
   {
     unsafe extern fn write<F>(st: *mut lua_State, p: *const c_void, sz: size_t, ud: *mut c_void) -> c_int
