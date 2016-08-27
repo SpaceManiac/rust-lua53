@@ -1192,12 +1192,12 @@ impl State {
   }
 
   /// Maps to `lua_sethook`.
-  pub fn set_hook(&mut self, func: Hook, mask: HookMask, count: c_int) {
+  pub fn set_hook(&mut self, func: Option<Hook>, mask: HookMask, count: c_int) {
     unsafe { ffi::lua_sethook(self.L, func, mask.bits(), count) }
   }
 
   /// Maps to `lua_gethook`.
-  pub fn get_hook(&mut self) -> Hook {
+  pub fn get_hook(&mut self) -> Option<Hook> {
     unsafe { ffi::lua_gethook(self.L) }
   }
 

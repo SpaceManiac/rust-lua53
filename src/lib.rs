@@ -38,7 +38,6 @@ pub use convert::*;
 pub use ffi::libc;
 pub use ffi::lua_Number as Number;
 pub use ffi::lua_Integer as Integer;
-pub use ffi::lua_Hook as Hook;
 
 use ffi::libc::{c_void, size_t};
 
@@ -47,6 +46,9 @@ pub type Function = unsafe extern fn(*mut ffi::lua_State) -> i32;
 
 /// A memory allocator function. See `lua_Alloc` in the Lua reference.
 pub type Allocator = unsafe extern fn(*mut c_void, *mut c_void, size_t, size_t) -> *mut c_void;
+
+/// A debug hook function. See `lua_Hook` in the Lua reference.
+pub type Hook = extern fn(*mut ffi::lua_State, *mut ffi::lua_Debug);
 
 /// Integer type used to index the Lua stack, usually `i32`.
 pub type Index = libc::c_int;
