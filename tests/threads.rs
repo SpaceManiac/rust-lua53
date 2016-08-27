@@ -16,3 +16,18 @@ fn atpanic() {
     assert_eq!(lua.at_panic(None), None);
     assert_eq!(lua.at_panic(None), None);
 }
+
+#[test]
+fn reference() {
+    let string = "two hundred years";
+
+    let mut lua = lua::State::new();
+    lua.new_table();
+    let top = lua.get_top();
+    lua.push_string(string);
+    let reference = lua.reference(top);
+    assert_eq!(lua.get_top(), top);
+    assert_eq!(lua.len_direct(top), 1);
+    assert_eq!(lua.get_reference(top, reference), lua::Type::String);
+    assert_eq!(lua.to_str_in_place(-1), Some(string));
+}

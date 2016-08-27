@@ -189,7 +189,7 @@ pub struct Reference(c_int);
 pub const REFNIL: Reference = Reference(ffi::LUA_REFNIL);
 
 /// A value that will never be returned by `reference`.
-pub const NOREF: Reference = Reference(ffi::LUA_REFNIL);
+pub const NOREF: Reference = Reference(ffi::LUA_NOREF);
 
 impl Reference {
   /// Returns `true` if this reference is equal to `REFNIL`.
@@ -200,12 +200,6 @@ impl Reference {
   /// Returns `true` if this reference is equal to `NOREF`.
   pub fn is_no_ref(self) -> bool {
     self == NOREF
-  }
-
-  /// Convenience function that returns the value of this reference.
-  pub fn value(self) -> c_int {
-    let Reference(value) = self;
-    value
   }
 }
 
@@ -1400,9 +1394,14 @@ impl State {
     Reference(result)
   }
 
+  /// Push the value of `reference` to the top of the stack and return its type.
+  pub fn get_reference(&mut self, index: Index, reference: Reference) -> Type {
+    self.raw_geti(index, reference.0 as Integer)
+  }
+
   /// Maps to `luaL_unref`.
   pub fn unreference(&mut self, t: Index, reference: Reference) {
-    unsafe { ffi::luaL_unref(self.L, t, reference.value()) }
+    unsafe { ffi::luaL_unref(self.L, t, reference.0) }
   }
 
   /// Maps to `luaL_loadfilex`.
