@@ -4,7 +4,7 @@ struct ExtraData {
     value: String,
 }
 
-fn check(state: &mut lua::State) {
+fn check(state: &lua::State) {
     let extra = ExtraData {
       value: "Initial data".to_string(),
     };
@@ -31,26 +31,35 @@ fn check(state: &mut lua::State) {
 }
 
 #[test]
-fn test_extra_owned() {
-    let mut state = lua::State::new();
-    check(&mut state);
+fn basic_checks() {
+    check(&lua::State::new());
 }
 
 #[test]
-fn test_extra_thread() {
-    let mut state = lua::State::new();
-    let extra = ExtraData {
-      value: "Won't be shared!".to_string(),
-    };
-    state.set_extra(Some(Box::new(extra)));
-
-    let mut thread = state.new_thread();
-    check(&mut thread);
+fn new_thread_rust() {
+    let state = lua::State::new();
+    state.set_extra(Some(Box::new(ExtraData {
+        value: "Won't be shared!".to_string(),
+    })));
+    check(state.new_thread());
 }
 
 #[test]
-fn test_extra_no_impact() {
-    let mut state = lua::State::new();
-    check(&mut state.new_thread());
+fn new_thread_lua() {
+    let lua = lua::State::new();
+    lua.open_libs();
+    lua.set_extra(Some(Box::new(ExtraData {
+        value: "Won't be shared!".to_string(),
+    })));
+    assert_eq!(lua.load_buffer(b"return coroutine.create(function () end)", ""), lua::ThreadStatus::Ok);
+    assert_eq!(lua.pcall(0, 1, 0), lua::ThreadStatus::Ok);
+    let thread = lua.to_thread(-1).unwrap();
+    check(thread);
+}
+
+#[test]
+fn main_thread_unimpacted() {
+    let state = lua::State::new();
+    check(state.new_thread());
     assert!(state.get_extra().is_none());
 }

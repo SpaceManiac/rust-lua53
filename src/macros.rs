@@ -4,7 +4,7 @@ use {State, Function};
 use ffi::lua_State;
 use ffi::libc::c_int;
 
-/// Wrap a `fn(&mut State) -> i32` as an ffi-suitable `Function`.
+/// Wrap a `fn(&State) -> i32` as an ffi-suitable `Function`.
 ///
 /// The argument must be a path, so that the specific `fn` is known at
 /// compile-time. See also `wrap_fn()`, which allows closures but panics at
@@ -16,11 +16,11 @@ macro_rules! lua_func {
 
 #[doc(hidden)]
 #[inline(always)]
-pub fn _check_type(f: fn(&mut State) -> c_int) -> fn(&mut State) -> c_int {
+pub fn _check_type(f: fn(&State) -> c_int) -> fn(&State) -> c_int {
   f
 }
 
-/// Wrap a `fn(&mut State) -> i32` as an ffi-suitable `Function`.
+/// Wrap a `fn(&State) -> i32` as an ffi-suitable `Function`.
 ///
 /// The argument must be zero-sized for this wrapping to be possible. This
 /// includes `fn` items whose targets are known at compile time and
@@ -30,9 +30,9 @@ pub fn _check_type(f: fn(&mut State) -> c_int) -> fn(&mut State) -> c_int {
 ///
 /// See also `lua_func!`, which checks at compile time that a valid `fn` items
 /// was supplied.
-pub fn _wrap<F: Fn(&mut State) -> i32>(_: F) -> Function {
-  unsafe extern fn wrapped<F: Fn(&mut State) -> c_int>(s: *mut lua_State) -> c_int {
-    mem::zeroed::<F>()(&mut State::from_ptr(s))
+pub fn _wrap<F: Fn(&State) -> i32>(_: F) -> Function {
+  unsafe extern fn wrapped<F: Fn(&State) -> c_int>(s: *mut lua_State) -> c_int {
+    mem::zeroed::<F>()(State::from_ptr(s))
   }
   assert!(mem::size_of::<F>() == 0, "");
   wrapped::<F>
