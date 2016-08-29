@@ -29,6 +29,19 @@ fn overlapping_main_thread() {
 }
 
 #[test]
+fn hell() {
+    let ctx = lua::Context::new();
+
+    let lua = ctx.main_thread();
+    let thread = lua.new_thread();
+    lua.xmove(thread, 1);
+    lua.gc(lua::GcOption::Collect, 0);
+
+    assert_eq!(thread.load_buffer(b"return 2 * 200", ""), lua::ThreadStatus::Ok);
+    assert_eq!(thread.pcall(0, 0, 0), lua::ThreadStatus::Ok);
+}
+
+#[test]
 fn atpanic() {
     let lua = lua::State::new();
     assert_eq!(lua.at_panic(None), None);

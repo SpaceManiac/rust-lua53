@@ -1550,7 +1550,7 @@ impl State {
   }
 
   /// Maps to `luaL_optlstring`.
-  pub fn opt_string<'a>(&'a mut self, n: Index, default: &'a str) -> &'a str {
+  pub fn opt_string<'a>(&'a self, n: Index, default: &'a str) -> &'a str {
     let mut size = 0;
     let c_str = CString::new(default).unwrap();
     let ptr = unsafe { ffi::luaL_optlstring(self.as_ptr(), n, c_str.as_ptr(), &mut size) };
