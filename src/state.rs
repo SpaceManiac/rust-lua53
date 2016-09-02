@@ -282,6 +282,47 @@ unsafe extern fn alloc_func(_: *mut c_void, ptr: *mut c_void, old_size: size_t, 
   }
 }
 
+pub struct Guard<'a, T: ?Sized + 'a> {
+  value: &'a T,
+  storage: Option<(&'a State, Reference)>,
+}
+
+impl<'a, T: ?Sized> Guard<'a, T> {
+  fn new(state: &'a State, value: &'a T, mut index: Index) -> Guard<'a, T> {
+    if index < 0 && index > REGISTRYINDEX {
+      index -= 1;
+    }
+    state.push_nil();
+    state.copy(index, -1);
+    Guard { value: value, storage: Some((state, state.reference(REGISTRYINDEX))) }
+  }
+
+  fn borrowed(value: &'a T) -> Guard<'a, T> {
+    Guard { value: value, storage: None }
+  }
+}
+
+impl<'a, T: ?Sized> ::std::ops::Deref for Guard<'a, T> {
+  type Target = T;
+  fn deref(&self) -> &T {
+    self.value
+  }
+}
+
+impl<'a, T: ?Sized + ::std::fmt::Debug> ::std::fmt::Debug for Guard<'a, T> {
+  fn fmt(&self, f: &mut ::std::fmt::Formatter) -> ::std::fmt::Result {
+    self.value.fmt(f)
+  }
+}
+
+impl<'a, T: ?Sized> Drop for Guard<'a, T> {
+  fn drop(&mut self) {
+    if let Some((state, lref)) = self.storage.take() {
+      state.unreference(REGISTRYINDEX, lref);
+    }
+  }
+}
+
 /// An owned Lua context, with an associated main thread.
 ///
 /// The `State` methods available on this context apply to the main thread.
@@ -384,7 +425,7 @@ impl State {
   /// Get the main thread of the `Context` that this `State` belongs to.
   pub fn main_thread(&self) -> &State {
     assert!(self.raw_geti(REGISTRYINDEX, RIDX_MAINTHREAD) == Type::Thread);
-    let thread = self.to_thread(-1).unwrap();
+    let thread = unsafe { State::from_ptr(ffi::lua_tothread(self.as_ptr(), -1)) };
     self.pop(1);
     thread
   }
@@ -448,11 +489,11 @@ impl State {
   }
 
   /// Maps to `lua_newthread`.
-  pub fn new_thread(&self) -> &State {
+  pub fn new_thread(&self) -> Guard<State> {
     unsafe {
       let state = State::from_ptr(ffi::lua_newthread(self.as_ptr()));
       state.reset_extra();
-      state
+      Guard::new(self, state, -1)
     }
   }
 
@@ -602,17 +643,19 @@ impl State {
 
   /// Convenience function that calls `to_userdata` and performs a cast.
   //#[unstable(reason="this is an experimental function")]
+  // TODO
   pub unsafe fn to_userdata_typed<'a, T>(&'a mut self, index: Index) -> Option<&'a mut T> {
     mem::transmute(self.to_userdata(index))
   }
 
   /// Maps to `lua_tothread`.
-  pub fn to_thread(&self, index: Index) -> Option<&State> {
+  pub fn to_thread(&self, index: Index) -> Option<Guard<State>> {
     let state = unsafe { ffi::lua_tothread(self.as_ptr(), index) };
     if state.is_null() {
       None
     } else {
-      Some(unsafe { State::from_ptr(state) })
+      let state = unsafe { State::from_ptr(state) };
+      Some(Guard::new(self, state, -1))
     }
   }
 
@@ -690,7 +733,7 @@ impl State {
   /// Maps to `lua_pushthread`.
   pub fn push_thread(&self) -> bool {
     let result = unsafe { ffi::lua_pushthread(self.as_ptr()) };
-    result != 1
+    result == 1
   }
 
   //===========================================================================
@@ -877,7 +920,7 @@ impl State {
 
   // TODO: mode typing?
   /// Maps to `lua_load`.
-  pub fn load<'a, F>(&'a mut self, source: &str, mode: &str, mut reader: F) -> ThreadStatus
+  pub fn load<'a, F>(&mut self, source: &str, mode: &str, mut reader: F) -> ThreadStatus
     where F: FnMut(&State) -> &'a [u8]
   {
     unsafe extern fn read<'a, F>(st: *mut lua_State, ud: *mut c_void, sz: *mut size_t) -> *const c_char
@@ -1160,8 +1203,9 @@ impl State {
   }
 
   /// Maps to `lua_getlocal`.
-  pub fn get_local(&self, ar: &lua_Debug, n: c_int) -> Option<&str> {
-    let ptr = unsafe { ffi::lua_getlocal(self.as_ptr(), ar, n) };
+  // TODO
+  pub fn get_local(&self, ar: Option<&lua_Debug>, n: c_int) -> Option<&str> {
+    let ptr = unsafe { ffi::lua_getlocal(self.as_ptr(), ar.map_or(ptr::null_mut(), |ar| ar), n) };
     if ptr.is_null() {
       None
     } else {
@@ -1171,6 +1215,7 @@ impl State {
   }
 
   /// Maps to `lua_setlocal`.
+  // TODO
   pub fn set_local(&self, ar: &lua_Debug, n: c_int) -> Option<&str> {
     let ptr = unsafe { ffi::lua_setlocal(self.as_ptr(), ar, n) };
     if ptr.is_null() {
@@ -1182,6 +1227,7 @@ impl State {
   }
 
   /// Maps to `lua_getupvalue`.
+  // TODO
   pub fn get_upvalue(&self, funcindex: Index, n: c_int) -> Option<&str> {
     let ptr = unsafe { ffi::lua_getupvalue(self.as_ptr(), funcindex, n) };
     if ptr.is_null() {
@@ -1193,6 +1239,7 @@ impl State {
   }
 
   /// Maps to `lua_setupvalue`.
+  // TODO
   pub fn set_upvalue(&self, funcindex: Index, n: c_int) -> Option<&str> {
     let ptr = unsafe { ffi::lua_setupvalue(self.as_ptr(), funcindex, n) };
     if ptr.is_null() {
@@ -1264,14 +1311,14 @@ impl State {
   /// that method name is used for the `ToString` trait. This function returns
   /// a reference to the string at the given index, on which `to_owned` may be
   /// called.
-  pub fn to_str(&self, index: Index) -> Option<&str> {
+  pub fn to_str(&self, index: Index) -> Option<Guard<str>> {
     let mut len = 0;
     let ptr = unsafe { ffi::luaL_tolstring(self.as_ptr(), index, &mut len) };
     if ptr.is_null() {
       None
     } else {
       let slice = unsafe { slice::from_raw_parts(ptr as *const u8, len as usize) };
-      str::from_utf8(slice).ok()
+      str::from_utf8(slice).ok().map(|s| Guard::new(self, s, index))
     }
   }
 
@@ -1279,14 +1326,14 @@ impl State {
   /// that method name is used for the `ToString` trait. This function returns
   /// a reference to the string at the given index, on which `to_owned` may be
   /// called.
-  pub fn to_str_in_place(&self, index: Index) -> Option<&str> {
+  pub fn to_str_in_place(&self, index: Index) -> Option<Guard<str>> {
     let mut len = 0;
     let ptr = unsafe { ffi::lua_tolstring(self.as_ptr(), index, &mut len) };
     if ptr.is_null() {
       None
     } else {
       let slice = unsafe { slice::from_raw_parts(ptr as *const u8, len as usize) };
-      str::from_utf8(slice).ok()
+      str::from_utf8(slice).ok().map(|s| Guard::new(self, s, index))
     }
   }
 
@@ -1360,6 +1407,7 @@ impl State {
 
   /// Convenience function that calls `test_userdata` and performs a cast.
   //#[unstable(reason="this is an experimental function")]
+  // TODO
   pub unsafe fn test_userdata_typed<'a, T>(&'a mut self, arg: Index, tname: &str) -> Option<&'a mut T> {
     mem::transmute(self.test_userdata(arg, tname))
   }
@@ -1372,6 +1420,7 @@ impl State {
 
   /// Convenience function that calls `check_userdata` and performs a cast.
   //#[unstable(reason="this is an experimental function")]
+  // TODO
   pub unsafe fn check_userdata_typed<'a, T>(&'a mut self, arg: Index, tname: &str) -> &'a mut T {
     mem::transmute(self.check_userdata(arg, tname))
   }
@@ -1474,15 +1523,15 @@ impl State {
   }
 
   /// Maps to `luaL_gsub`.
-  pub fn gsub(&self, s: &str, p: &str, r: &str) -> &str {
+  pub fn gsub(&self, s: &str, p: &str, r: &str) -> Guard<str> {
     let s_c_str = CString::new(s).unwrap();
     let p_c_str = CString::new(p).unwrap();
     let r_c_str = CString::new(r).unwrap();
-    let ptr = unsafe {
-      ffi::luaL_gsub(self.as_ptr(), s_c_str.as_ptr(), p_c_str.as_ptr(), r_c_str.as_ptr())
-    };
-    let slice = unsafe { CStr::from_ptr(ptr).to_bytes() };
-    str::from_utf8(slice).unwrap()
+    unsafe {
+      ffi::luaL_gsub(self.as_ptr(), s_c_str.as_ptr(),
+        p_c_str.as_ptr(), r_c_str.as_ptr());
+    }
+    self.to_str_in_place(-1).unwrap()
   }
 
   /// Maps to `luaL_setfuncs`.
@@ -1542,23 +1591,23 @@ impl State {
   }
 
   /// Maps to `luaL_checklstring`.
-  pub fn check_string(&self, n: Index) -> &str {
+  pub fn check_string(&self, n: Index) -> Guard<str> {
     let mut size = 0;
     let ptr = unsafe { ffi::luaL_checklstring(self.as_ptr(), n, &mut size) };
     let slice = unsafe { slice::from_raw_parts(ptr as *const u8, size as usize) };
-    str::from_utf8(slice).unwrap()
+    Guard::new(self, str::from_utf8(slice).unwrap(), n)
   }
 
   /// Maps to `luaL_optlstring`.
-  pub fn opt_string<'a>(&'a self, n: Index, default: &'a str) -> &'a str {
+  pub fn opt_string<'a>(&'a self, n: Index, default: &'a str) -> Guard<'a, str> {
     let mut size = 0;
     let c_str = CString::new(default).unwrap();
     let ptr = unsafe { ffi::luaL_optlstring(self.as_ptr(), n, c_str.as_ptr(), &mut size) };
     if ptr == c_str.as_ptr() {
-      default
+      Guard::borrowed(default)
     } else {
       let slice = unsafe { slice::from_raw_parts(ptr as *const u8, size as usize) };
-      str::from_utf8(slice).unwrap()
+      Guard::new(self, str::from_utf8(slice).unwrap(), n)
     }
   }
 

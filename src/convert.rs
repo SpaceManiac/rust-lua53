@@ -98,7 +98,7 @@ pub trait FromLua: Sized {
 
 impl FromLua for String {
   fn from_lua(state: &State, index: Index) -> Option<String> {
-    state.to_str(index).map(ToOwned::to_owned)
+    state.to_str(index).map(|x| x.to_owned())
   }
 }
 
